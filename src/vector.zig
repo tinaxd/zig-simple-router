@@ -6,7 +6,7 @@ pub fn Vector(comptime T: type) type {
         /// Private field. Please use slice() instead. Using this field directly
         /// is not recommended because this property may be bigger than the actual
         /// slice (it is as big as the vector's capacity).
-        items: []T,
+        priv_items: []T,
         allocator: Allocator,
         /// Private field
         size: usize,
@@ -17,34 +17,34 @@ pub fn Vector(comptime T: type) type {
             return .{
                 .allocator = allocator,
                 .size = 0,
-                .items = try allocator.alloc(T, @max(cap, 4)),
+                .priv_items = try allocator.alloc(T, @max(cap, 4)),
             };
         }
 
         pub fn deinit(self: *Self) void {
-            self.allocator.free(self.items);
+            self.allocator.free(self.priv_items);
             self.size = 0;
         }
 
         pub fn append(self: *Self, item: T) !void {
-            if (self.items.len > self.size + 1) {
-                self.items[self.size] = item;
+            if (self.priv_items.len > self.size + 1) {
+                self.priv_items[self.size] = item;
                 self.size += 1;
                 return;
             }
 
-            var new_array = try self.allocator.alloc(T, self.items.len * 2);
+            var new_array = try self.allocator.alloc(T, self.priv_items.len * 2);
 
-            std.mem.copy(T, new_array, self.items);
-            self.allocator.free(self.items);
+            std.mem.copy(T, new_array, self.priv_items);
+            self.allocator.free(self.priv_items);
 
-            self.items = new_array;
-            self.items[self.size] = item;
+            self.priv_items = new_array;
+            self.priv_items[self.size] = item;
             self.size += 1;
         }
 
         pub fn slice(self: *Self) []T {
-            return self.items[0..self.size];
+            return self.priv_items[0..self.size];
         }
     };
 }

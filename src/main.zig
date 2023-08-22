@@ -15,25 +15,31 @@ pub fn Router(comptime V: type) type {
     return struct {
         allocator: Allocator,
         /// Private field
-        root_route: Route(V),
+        priv_root_route: Route(V),
 
         const Self = @This();
 
         pub fn init(allocator: Allocator) Self {
             return .{
                 .allocator = allocator,
-                .root_route = Route(V).init(allocator),
+                .priv_root_route = Route(V).init(allocator),
             };
         }
 
         pub fn deinit(self: *Self) void {
-            (&self.root_route).deinit();
+            (&self.priv_root_route).deinit();
         }
 
         pub fn put(self: *Self, path: []const u8, handler: V) !void {
             var splitted = try splitPath(self.allocator, path);
             defer splitted.deinit();
-            try self.root_route.putSlice(splitted.slice(), handler);
+            try self.priv_root_route.putSlice(splitted.slice(), handler);
+        }
+
+        pub fn get(self: *Self, path: []const u8) !?V {
+            var splitted = try splitPath(self.allocator, path);
+            defer splitted.deinit();
+            return self.priv_root_route.getSlice(splitted.slice());
         }
     };
 }
@@ -42,26 +48,26 @@ pub fn Route(comptime V: type) type {
     return struct {
         allocator: Allocator,
         /// Private field
-        root_handler: ?V,
+        priv_root_handler: ?V,
         /// Private field
-        children: std.StringHashMap(Route(V)),
+        priv_children: std.StringHashMap(Route(V)),
 
         const Self = @This();
 
         pub fn init(allocator: Allocator) Self {
             return .{
                 .allocator = allocator,
-                .root_handler = null,
-                .children = std.StringHashMap(Route(V)).init(allocator),
+                .priv_root_handler = null,
+                .priv_children = std.StringHashMap(Route(V)).init(allocator),
             };
         }
 
         pub fn deinit(self: *Self) void {
-            var size = self.children.count();
-            defer self.children.deinit();
+            var size = self.priv_children.count();
+            defer self.priv_children.deinit();
 
             if (size > 0) {
-                var it = (&self.children).iterator();
+                var it = (&self.priv_children).iterator();
                 var entry = it.next();
 
                 while (entry != null) : (entry = it.next()) {
@@ -71,29 +77,29 @@ pub fn Route(comptime V: type) type {
                 }
             }
 
-            if (self.root_handler != null) {
-                self.root_handler = null;
+            if (self.priv_root_handler != null) {
+                self.priv_root_handler = null;
             }
         }
 
         fn putSlice(self: *Self, path: [][]const u8, handler: V) !void {
             if (path.len == 0) {
-                self.root_handler = handler;
+                self.priv_root_handler = handler;
                 return;
             }
 
             if (path.len == 1 and std.mem.eql(u8, path[0], "")) {
-                self.root_handler = handler;
+                self.priv_root_handler = handler;
                 return;
             }
 
             if (path.len == 1 and path[0].len > 0 and path[0][0] == ':') {
-                self.root_handler = handler;
+                self.priv_root_handler = handler;
                 return;
             }
 
             for (path) |path_item| {
-                var r = self.children.getPtr(path_item);
+                var r = self.priv_children.getPtr(path_item);
                 if (r) |route| {
                     try route.putSlice(path[1..], handler);
                     return;
@@ -103,9 +109,30 @@ pub fn Route(comptime V: type) type {
 
                 var child = Route(V).init(self.allocator);
                 try child.putSlice(path[1..], handler);
-                try self.children.put(key_copy, child);
+                try self.priv_children.put(key_copy, child);
                 return;
             }
+        }
+
+        fn getSlice(self: *Self, path: [][]const u8) ?V {
+            if (path.len == 0) {
+                return self.priv_root_handler;
+            }
+
+            if (path.len == 1 and std.mem.eql(u8, path[0], "")) {
+                return self.priv_root_handler;
+            }
+
+            for (path) |path_item| {
+                var r = self.priv_children.getPtr(path_item);
+                if (r) |route| {
+                    return route.getSlice(path[1..]);
+                }
+
+                return self.priv_root_handler;
+            }
+
+            return null;
         }
     };
 }
@@ -137,6 +164,16 @@ test "router" {
     var router = Router(u8).init(std.testing.allocator);
     defer router.deinit();
     try router.put("/", 1);
-    // try router.put("/hello", 2);
-    try router.put("paris/hello", 2);
+    try router.put("/hello", 2);
+    try router.put("/paris/:id", 3);
+
+    const r1 = try router.get("/");
+    try testing.expect(r1.? == 1);
+    const r2 = try router.get("/hello");
+    try testing.expect(r2.? == 2);
+    const r3 = try router.get("/paris/123");
+    try testing.expect(r3 != null);
+    try testing.expect(r3.? == 3);
+    const r4 = try router.get("/unknown"); //TODO: fix this (this is returning 1, same as "/")
+    try testing.expect(r4 == null);
 }
