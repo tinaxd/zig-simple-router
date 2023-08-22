@@ -3,8 +3,12 @@ const Allocator = std.mem.Allocator;
 
 pub fn Vector(comptime T: type) type {
     return struct {
+        /// Private field. Please use slice() instead. Using this field directly
+        /// is not recommended because this property may be bigger than the actual
+        /// slice (it is as big as the vector's capacity).
         items: []T,
         allocator: Allocator,
+        /// Private field
         size: usize,
 
         const Self = @This();

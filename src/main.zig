@@ -3,17 +3,18 @@ const testing = std.testing;
 const Allocator = std.mem.Allocator;
 const Vector = @import("vector.zig").Vector;
 
-export fn add(a: i32, b: i32) i32 {
-    return a + b;
-}
+// export fn add(a: i32, b: i32) i32 {
+//     return a + b;
+// }
 
-test "basic add functionality" {
-    try testing.expect(add(3, 7) == 10);
-}
+// test "basic add functionality" {
+//     try testing.expect(add(3, 7) == 10);
+// }
 
 pub fn Router(comptime V: type) type {
     return struct {
         allocator: Allocator,
+        /// Private field
         root_route: Route(V),
 
         const Self = @This();
@@ -40,7 +41,9 @@ pub fn Router(comptime V: type) type {
 pub fn Route(comptime V: type) type {
     return struct {
         allocator: Allocator,
+        /// Private field
         root_handler: ?V,
+        /// Private field
         children: std.StringHashMap(Route(V)),
 
         const Self = @This();
@@ -89,10 +92,7 @@ pub fn Route(comptime V: type) type {
                 return;
             }
 
-            for (path, 0..) |path_item, i| {
-                _ = i;
-                std.debug.print(":) {s} {}\n\n\n", .{ path_item, path_item.len });
-
+            for (path) |path_item| {
                 var r = self.children.getPtr(path_item);
                 if (r) |route| {
                     try route.putSlice(path[1..], handler);
@@ -136,7 +136,7 @@ test "split_path" {
 test "router" {
     var router = Router(u8).init(std.testing.allocator);
     defer router.deinit();
-    // try router.put("/", 1);
+    try router.put("/", 1);
     // try router.put("/hello", 2);
     try router.put("paris/hello", 2);
 }
