@@ -55,10 +55,12 @@ test "append" {
     try vec.append(10);
     try vec.append(15);
     try vec.append(22);
+    try vec.append(123);
 
     var s = vec.slice();
 
     try std.testing.expectEqual(s[0], 10);
     try std.testing.expectEqual(s[1], 15);
     try std.testing.expectEqual(s[2], 22);
+    try std.testing.expectEqual(s[3], 123);
 }

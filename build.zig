@@ -15,6 +15,15 @@ pub fn build(b: *std.Build) !void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
+    // create a module to be used internally.
+    var router_module = b.createModule(.{
+        .source_file = .{ .path = "src/main.zig" },
+    });
+
+    // register the module so it can be referenced
+    // using the package manager.
+    try b.modules.put(b.dupe("router"), router_module);
+
     const lib = b.addStaticLibrary(.{
         .name = "router",
         // In this case the main source file is merely a path, however, in more
@@ -28,15 +37,6 @@ pub fn build(b: *std.Build) !void {
     // location when the user invokes the "install" step (the default step when
     // running `zig build`).
     b.installArtifact(lib);
-
-    // create a module to be used internally.
-    var router_module = b.createModule(.{
-        .source_file = .{ .path = "src/main.zig" },
-    });
-
-    // register the module so it can be referenced
-    // using the package manager.
-    try b.modules.put(b.dupe("router"), router_module);
 
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
