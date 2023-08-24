@@ -23,6 +23,8 @@ fn dispatch_routes(r: zap.SimpleRequest) void {
         \\   <body>
         \\     <p><a href="/static">static</a></p>
         \\     <p><a href="/dynamic">dynamic</a></p>
+        \\     <p><a href="/dynamic/1">very dynamic</a></p>
+        \\     <p><a href="/dynamic/2">very dynamic</a></p>
         \\   </body>
         \\ </html>
     ) catch return;
