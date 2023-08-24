@@ -4,7 +4,6 @@ Grug wants simple router that works well with [Zap](https://github.com/zigzap/za
 Grug will probably deprecate this once Zap gets an official router implementation.
 
 ```zig
-
 const std = @import("std");
 const zap = @import("zap");
 const router = @import("router");
@@ -12,7 +11,8 @@ const router = @import("router");
 fn dispatch_routes(r: zap.SimpleRequest) void {
     // dispatch
     if (r.path) |the_path| {
-        if (routes.get(the_path)) |foo| {
+        var p = routes.get(the_path) catch unreachable;
+        if (p) |foo| {
             foo(r);
             return;
         }
@@ -71,5 +71,4 @@ pub fn main() !void {
         .workers = 2,
     });
 }
-
 ```
