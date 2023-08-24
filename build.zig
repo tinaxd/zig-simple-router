@@ -3,7 +3,7 @@ const std = @import("std");
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
 // runner.
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     // Standard target options allows the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
     // means any target is allowed, and the default is native. Other options
@@ -28,6 +28,15 @@ pub fn build(b: *std.Build) void {
     // location when the user invokes the "install" step (the default step when
     // running `zig build`).
     b.installArtifact(lib);
+
+    // create a module to be used internally.
+    var router_module = b.createModule(.{
+        .source_file = .{ .path = "src/main.zig" },
+    });
+
+    // register the module so it can be referenced
+    // using the package manager.
+    try b.modules.put(b.dupe("router"), router_module);
 
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
