@@ -48,6 +48,7 @@ fn setup_routes(a: std.mem.Allocator) !void {
     routes = router.Router(zap.SimpleHttpRequestFn).init(a);
     try routes.put("/static", static_site);
     try routes.put("/dynamic", dynamic_site);
+    try routes.put("/dynamic/:very_dynamic", dynamic_site);
 }
 
 var routes: router.Router(zap.SimpleHttpRequestFn) = undefined;
