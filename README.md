@@ -45,7 +45,7 @@ fn dynamic_site(r: zap.SimpleRequest) void {
 }
 
 fn setup_routes(a: std.mem.Allocator) !void {
-    routes = std.Router(zap.SimpleHttpRequestFn).init(a);
+    routes = router.Router(zap.SimpleHttpRequestFn).init(a);
     try routes.put("/static", static_site);
     try routes.put("/dynamic", dynamic_site);
 }
