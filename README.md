@@ -12,9 +12,14 @@ fn dispatch_routes(r: zap.SimpleRequest) void {
     // dispatch
     if (r.path) |the_path| {
         var p = routes.get(the_path) catch unreachable;
-        if (p) |foo| {
-            foo(r);
-            return;
+        if (p) |*match| {
+            defer match.deinit();
+            if (match.item != null) {
+                std.debug.print("route {s}\n", .{match.path() catch unreachable});
+                match.item.?(r);
+                return;
+            }
+            std.debug.print("route '{s}' has nil handler", .{match.path() catch unreachable});
         }
     }
     // or default: present menu
