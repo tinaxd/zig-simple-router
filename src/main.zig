@@ -163,6 +163,54 @@ pub fn Route(comptime V: type) type {
     };
 }
 
+pub fn Match(comptime V: type) type {
+    return struct {
+        path: []const u8,
+        item: V,
+    };
+}
+
+/// Extract path parameters from a path.
+/// Ex:
+/// var params = ExtractParamsFromPath(std.heap.page_allocator, "/users/:user", req.path)
+/// std.debug.print("{}", .{params.get("user")})
+pub fn ExtractParamsFromPath(allocator: Allocator, template_path: []const u8, src_path: []const u8) !std.StringHashMap([]const u8) {
+    var m = std.StringHashMap([]const u8).init(allocator);
+
+    var v_template = try splitPath(allocator, template_path);
+    defer v_template.deinit();
+    var v_src = try splitPath(allocator, src_path);
+    defer v_src.deinit();
+
+    var s_template = v_template.slice();
+    var s_src = v_src.slice();
+
+    for (s_src, 0..) |i_src, i| {
+        if (s_template.len <= i) {
+            break;
+        }
+
+        if (i_src.len < 1) {
+            continue;
+        }
+
+        var i_template = s_template[i];
+
+        if (i_template.len < 1) {
+            continue;
+        }
+
+        if (i_template[0] != ':') {
+            continue;
+        }
+
+        var bit = i_template[1..];
+        try m.put(bit, i_src);
+    }
+
+    return m;
+}
+
 fn splitPath(allocator: Allocator, path: []const u8) !Vector([]const u8) {
     if (path.len == 0) {
         return try Vector([]const u8).init(allocator, 1);
@@ -196,6 +244,18 @@ test "split_path" {
     for (splits.slice(), 0..) |item, i| {
         std.debug.print("{s} {}\n", .{ item, i });
     }
+}
+
+test "extract_params_from_path" {
+    var p_tpl: []const u8 = "/users/:user/say-hello";
+    var p_src: []const u8 = "/users/mike/say-hello/ok";
+
+    var m = try ExtractParamsFromPath(std.testing.allocator, p_tpl, p_src);
+    defer m.deinit();
+
+    var umike = m.get("user") orelse unreachable;
+
+    try testing.expect(std.mem.eql(u8, umike, "mike"));
 }
 
 test "router" {
