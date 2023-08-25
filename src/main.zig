@@ -165,16 +165,80 @@ pub fn Route(comptime V: type) type {
 
 pub fn Match(comptime V: type) type {
     return struct {
-        path: []const u8,
+        allocator: Allocator,
         item: V,
+        _path_bits: ?Vector([]const u8),
+        _compiled_path: ?[]u8,
+
+        const Self = @This();
+
+        pub fn init(allocator: Allocator) !Self {
+            return .{
+                .allocator = allocator,
+                .item = undefined,
+                ._path_bits = try Vector([]const u8).init(allocator, 0),
+                ._compiled_path = null,
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            if (self._path_bits != null) {
+                self._path_bits.?.deinit();
+                self._path_bits = null;
+            }
+
+            if (self._compiled_path != null) {
+                self.allocator.free(self._compiled_path.?);
+                self._compiled_path = null;
+            }
+
+            self.item = undefined;
+            self.* = undefined;
+        }
+
+        pub fn path(self: *Self) ![]u8 {
+            if (self._compiled_path != null) {
+                return self._compiled_path;
+            }
+
+            try self.compilePath();
+
+            return self._compiled_path;
+        }
+
+        fn compilePath(self: *Self) !void {
+            var sz: usize = 0;
+
+            for (self._path_bits, 0..) |p, i| {
+                sz += p.len;
+                if (i > 0) {
+                    sz += 1;
+                }
+            }
+
+            var output = try self.allocator.alloc(u8, sz);
+
+            var cursor: usize = 0;
+
+            for (self._path_bits, 0..) |p, i| {
+                if (i > 0) {
+                    output[cursor] = '/';
+                    cursor += 1;
+                }
+                std.mem.copy(u8, output[cursor..], p);
+                cursor += p.len;
+            }
+
+            self._compiled_path = output;
+        }
     };
 }
 
 /// Extract path parameters from a path.
 /// Ex:
-/// var params = ExtractParamsFromPath(std.heap.page_allocator, "/users/:user", req.path)
+/// var params = extractParamsFromPath(std.heap.page_allocator, "/users/:user", req.path)
 /// std.debug.print("{}", .{params.get("user")})
-pub fn ExtractParamsFromPath(allocator: Allocator, template_path: []const u8, src_path: []const u8) !std.StringHashMap([]const u8) {
+pub fn extractParamsFromPath(allocator: Allocator, template_path: []const u8, src_path: []const u8) !std.StringHashMap([]const u8) {
     var m = std.StringHashMap([]const u8).init(allocator);
 
     var v_template = try splitPath(allocator, template_path);
@@ -250,7 +314,7 @@ test "extract_params_from_path" {
     var p_tpl: []const u8 = "/users/:user/say-hello";
     var p_src: []const u8 = "/users/mike/say-hello/ok";
 
-    var m = try ExtractParamsFromPath(std.testing.allocator, p_tpl, p_src);
+    var m = try extractParamsFromPath(std.testing.allocator, p_tpl, p_src);
     defer m.deinit();
 
     var umike = m.get("user") orelse unreachable;
