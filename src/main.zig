@@ -12,6 +12,10 @@ const RouteKind = enum {
     Custom,
 };
 
+const Error = error{
+    UndefinedPathBits,
+};
+
 pub fn Router(comptime V: type) type {
     return struct {
         _allocator: Allocator,
@@ -39,10 +43,18 @@ pub fn Router(comptime V: type) type {
             try self._root_route.putSlice(splitted.slice(), handler);
         }
 
-        pub fn get(self: *Self, path: []const u8) !?V {
+        pub fn get(self: *Self, path: []const u8) !?Match(V) {
             var splitted = try splitPath(self._allocator, path);
             defer splitted.deinit();
-            return self._root_route.getSlice(splitted.slice());
+
+            var m = try Match(V).init(self._allocator);
+
+            if (try self._root_route.getSlice(splitted.slice(), &m)) {
+                return m;
+            }
+            m.deinit();
+
+            return null;
         }
     };
 }
@@ -112,7 +124,7 @@ pub fn Route(comptime V: type) type {
 
             if (path[0][0] == ':') {
                 child_route_match = wildcard;
-                child_route_name = path[0][1..];
+                child_route_name = path[0];
                 child_route_kind = RouteKind.Wildcard;
             } else {
                 child_route_match = path[0];
@@ -140,25 +152,42 @@ pub fn Route(comptime V: type) type {
             try self._children.put(key_copy, child);
         }
 
-        fn getSlice(self: *Self, path: [][]const u8) ?V {
+        fn getSlice(self: *Self, path: [][]const u8, match_ptr: *Match(V)) !bool {
             if (path.len == 0) {
-                // if (self._name == )
-                return self._root_handler;
+                if (match_ptr._path_bits != null and self._name != null) {
+                    try match_ptr._path_bits.?.append(self._name.?);
+                }
+
+                match_ptr.item = self._root_handler;
+                return true;
             }
 
             if (path.len == 1 and std.mem.eql(u8, path[0], "")) {
-                return self._root_handler;
+                if (match_ptr._path_bits != null and self._name != null) {
+                    try match_ptr._path_bits.?.append(self._name.?);
+                }
+
+                match_ptr.item = self._root_handler;
+                return true;
             }
 
             if (self._children.getPtr(path[0])) |child| {
-                return child.getSlice(path[1..]);
+                if (match_ptr._path_bits != null and self._name != null) {
+                    try match_ptr._path_bits.?.append(self._name.?);
+                }
+
+                return child.getSlice(path[1..], match_ptr);
             }
 
             if (self._children.getPtr(wildcard)) |child| {
-                return child.getSlice(path[1..]);
+                if (match_ptr._path_bits != null and self._name != null) {
+                    try match_ptr._path_bits.?.append(self._name.?);
+                }
+
+                return child.getSlice(path[1..], match_ptr);
             }
 
-            return null;
+            return false;
         }
     };
 }
@@ -166,7 +195,7 @@ pub fn Route(comptime V: type) type {
 pub fn Match(comptime V: type) type {
     return struct {
         allocator: Allocator,
-        item: V,
+        item: ?V,
         _path_bits: ?Vector([]const u8),
         _compiled_path: ?[]u8,
 
@@ -175,7 +204,7 @@ pub fn Match(comptime V: type) type {
         pub fn init(allocator: Allocator) !Self {
             return .{
                 .allocator = allocator,
-                .item = undefined,
+                .item = null,
                 ._path_bits = try Vector([]const u8).init(allocator, 0),
                 ._compiled_path = null,
             };
@@ -198,18 +227,22 @@ pub fn Match(comptime V: type) type {
 
         pub fn path(self: *Self) ![]u8 {
             if (self._compiled_path != null) {
-                return self._compiled_path;
+                return self._compiled_path.?;
             }
 
             try self.compilePath();
 
-            return self._compiled_path;
+            return self._compiled_path.?;
         }
 
         fn compilePath(self: *Self) !void {
+            if (self._path_bits == null) {
+                return Error.UndefinedPathBits;
+            }
+
             var sz: usize = 0;
 
-            for (self._path_bits, 0..) |p, i| {
+            for (self._path_bits.?.slice(), 0..) |p, i| {
                 sz += p.len;
                 if (i > 0) {
                     sz += 1;
@@ -220,7 +253,7 @@ pub fn Match(comptime V: type) type {
 
             var cursor: usize = 0;
 
-            for (self._path_bits, 0..) |p, i| {
+            for (self._path_bits.?.slice(), 0..) |p, i| {
                 if (i > 0) {
                     output[cursor] = '/';
                     cursor += 1;
@@ -329,13 +362,20 @@ test "router" {
     try router.put("/hello", 2);
     try router.put("/paris/:id", 3);
 
-    const r1 = try router.get("/");
-    try testing.expect(r1.? == 1);
-    const r2 = try router.get("/hello");
-    try testing.expect(r2.? == 2);
-    const r3 = try router.get("/paris/123");
+    var r1 = try router.get("/");
+    defer r1.?.deinit();
+    try testing.expect(r1.?.item == 1);
+    var r2 = try router.get("/hello");
+    defer r2.?.deinit();
+    try testing.expect(r2.?.item == 2);
+    var r3 = try router.get("/paris/123");
     try testing.expect(r3 != null);
-    try testing.expect(r3.? == 3);
+    defer r3.?.deinit();
+    try testing.expect(r3.?.item == 3);
+
+    var p = try r3.?.path();
+    try testing.expect(std.mem.eql(u8, p, "paris/:id"));
+
     const r4 = try router.get("/unknown");
     try testing.expect(r4 == null);
 }
