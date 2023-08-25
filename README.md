@@ -1,5 +1,7 @@
 # Simple Router
 
+![CI](https://github.com/gabstv/zig-simple-router/actions/workflows/ci.yaml/badge.svg)
+
 Grug wants simple router that works well with [Zap](https://github.com/zigzap/zap).
 Grug will probably deprecate this once Zap gets an official router implementation.
 
