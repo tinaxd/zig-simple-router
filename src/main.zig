@@ -376,6 +376,11 @@ test "router" {
     var p = try r3.?.path();
     try testing.expect(std.mem.eql(u8, p, "paris/:id"));
 
+    var r3params = try extractParamsFromPath(std.testing.allocator, p, "/paris/123");
+    defer r3params.deinit();
+
+    try testing.expect(std.mem.eql(u8, r3params.get("id").?, "123"));
+
     const r4 = try router.get("/unknown");
     try testing.expect(r4 == null);
 }
