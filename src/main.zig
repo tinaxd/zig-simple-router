@@ -321,7 +321,7 @@ fn splitPath(allocator: Allocator, path: []const u8) !Vector([]const u8) {
         fpath = path;
     }
 
-    var slice = std.mem.split(u8, fpath, "/");
+    var slice = std.mem.splitSequence(u8, fpath, "/");
 
     var pathSlice = try Vector([]const u8).init(allocator, 0);
 
