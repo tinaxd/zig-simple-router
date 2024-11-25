@@ -32,9 +32,9 @@ pub fn Vector(comptime T: type) type {
                 return;
             }
 
-            var new_array = try self.allocator.alloc(T, self._items.len * 2);
+            const new_array = try self.allocator.alloc(T, self._items.len * 2);
 
-            std.mem.copy(T, new_array, self._items);
+            std.mem.copyForwards(T, new_array, self._items);
             self.allocator.free(self._items);
 
             self._items = new_array;
@@ -56,7 +56,7 @@ test "append" {
     try vec.append(22);
     try vec.append(123);
 
-    var s = vec.slice();
+    const s = vec.slice();
 
     try std.testing.expectEqual(s[0], 10);
     try std.testing.expectEqual(s[1], 15);

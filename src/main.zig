@@ -82,7 +82,7 @@ pub fn Route(comptime V: type) type {
         }
 
         pub fn deinit(self: *Self) void {
-            var size = self._children.count();
+            const size = self._children.count();
             defer self._children.deinit();
 
             if (size > 0) {
@@ -132,13 +132,13 @@ pub fn Route(comptime V: type) type {
                 child_route_kind = RouteKind.Custom;
             }
 
-            var r = self._children.getPtr(child_route_match);
+            const r = self._children.getPtr(child_route_match);
             if (r) |route| {
                 try route.putSlice(path[1..], handler);
                 return;
             }
 
-            var key_copy = try self.allocator.dupe(u8, child_route_match);
+            const key_copy = try self.allocator.dupe(u8, child_route_match);
             var child = Route(V).init(self.allocator);
             child._kind = child_route_kind;
             child._name = child_route_name;
@@ -258,7 +258,7 @@ pub fn Match(comptime V: type) type {
                     output[cursor] = '/';
                     cursor += 1;
                 }
-                std.mem.copy(u8, output[cursor..], p);
+                std.mem.copyForwards(u8, output[cursor..], p);
                 cursor += p.len;
             }
 
@@ -279,8 +279,8 @@ pub fn extractParamsFromPath(allocator: Allocator, template_path: []const u8, sr
     var v_src = try splitPath(allocator, src_path);
     defer v_src.deinit();
 
-    var s_template = v_template.slice();
-    var s_src = v_src.slice();
+    const s_template = v_template.slice();
+    const s_src = v_src.slice();
 
     for (s_src, 0..) |i_src, i| {
         if (s_template.len <= i) {
@@ -301,7 +301,7 @@ pub fn extractParamsFromPath(allocator: Allocator, template_path: []const u8, sr
             continue;
         }
 
-        var bit = i_template[1..];
+        const bit = i_template[1..];
         try m.put(bit, i_src);
     }
 
@@ -344,13 +344,13 @@ test "split_path" {
 }
 
 test "extract_params_from_path" {
-    var p_tpl: []const u8 = "/users/:user/say-hello";
-    var p_src: []const u8 = "/users/mike/say-hello/ok";
+    const p_tpl: []const u8 = "/users/:user/say-hello";
+    const p_src: []const u8 = "/users/mike/say-hello/ok";
 
     var m = try extractParamsFromPath(std.testing.allocator, p_tpl, p_src);
     defer m.deinit();
 
-    var umike = m.get("user") orelse unreachable;
+    const umike = m.get("user") orelse unreachable;
 
     try testing.expect(std.mem.eql(u8, umike, "mike"));
 }
@@ -373,7 +373,7 @@ test "router" {
     defer r3.?.deinit();
     try testing.expect(r3.?.item == 3);
 
-    var p = try r3.?.path();
+    const p = try r3.?.path();
     try testing.expect(std.mem.eql(u8, p, "paris/:id"));
 
     var r3params = try extractParamsFromPath(std.testing.allocator, p, "/paris/123");
