@@ -16,7 +16,7 @@ const Error = error{
     UndefinedPathBits,
 };
 
-const Method = enum(u8) {
+pub const Method = enum(u8) {
     get,
     head,
     post,
@@ -27,6 +27,32 @@ const Method = enum(u8) {
     trace,
     patch,
 };
+
+fn caseStringEq(a: []const u8, b: []const u8) bool {
+    return std.ascii.eqlIgnoreCase(a, b);
+}
+
+pub fn parseMethod(method: []const u8) ?Method {
+    const maps = .{
+        .{ .str = "get", .method = .get },
+        .{ .str = "head", .method = .head },
+        .{ .str = "post", .method = .post },
+        .{ .str = "put", .method = .put },
+        .{ .str = "delete", .method = .delete },
+        .{ .str = "connect", .method = .connect },
+        .{ .str = "options", .method = .options },
+        .{ .str = "trace", .method = .trace },
+        .{ .str = "patch", .method = .patch },
+    };
+
+    inline for (maps) |v| {
+        if (caseStringEq(method, v.str)) {
+            return v.method;
+        }
+    }
+
+    return null;
+}
 
 pub fn Router(comptime V: type) type {
     return struct {
@@ -407,4 +433,9 @@ test "router" {
 
     const r6 = try router.get(.get, "/paris/123");
     try testing.expect(r6 == null);
+}
+
+test "parse method" {
+    try testing.expect(parseMethod("get").? == .get);
+    try testing.expect(parseMethod("hEAd").? == .head);
 }
