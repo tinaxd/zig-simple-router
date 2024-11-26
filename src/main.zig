@@ -16,40 +16,58 @@ const Error = error{
     UndefinedPathBits,
 };
 
+const Method = enum(u8) {
+    get,
+    head,
+    post,
+    put,
+    delete,
+    connect,
+    options,
+    trace,
+    patch,
+};
+
 pub fn Router(comptime V: type) type {
     return struct {
         _allocator: Allocator,
         /// Private field
-        _root_route: Route(V),
+        _root_routes: [9]Route(V),
 
         const Self = @This();
 
         pub fn init(allocator: Allocator) Self {
-            var new_router = .{
+            var routes: [9]Route(V) = undefined;
+            for (routes, 0..) |_, i| {
+                routes[i] = Route(V).init(allocator);
+                routes[i]._is_root = true;
+            }
+            const new_router = Self{
                 ._allocator = allocator,
-                ._root_route = Route(V).init(allocator),
+                ._root_routes = routes,
             };
-            new_router._root_route._is_root = true;
             return new_router;
         }
 
         pub fn deinit(self: *Self) void {
-            (&self._root_route).deinit();
+            for (&self._root_routes) |*route| {
+                route.deinit();
+            }
         }
 
-        pub fn put(self: *Self, path: []const u8, handler: V) !void {
+        pub fn put(self: *Self, method: Method, path: []const u8, handler: V) !void {
             var splitted = try splitPath(self._allocator, path);
             defer splitted.deinit();
-            try self._root_route.putSlice(splitted.slice(), handler);
+            try self._root_routes[@intFromEnum(method)].putSlice(splitted.slice(), handler);
         }
 
-        pub fn get(self: *Self, path: []const u8) !?Match(V) {
+        pub fn get(self: *Self, method: Method, path: []const u8) !?Match(V) {
             var splitted = try splitPath(self._allocator, path);
             defer splitted.deinit();
 
             var m = try Match(V).init(self._allocator);
 
-            if (try self._root_route.getSlice(splitted.slice(), &m)) {
+            if (try self._root_routes[@intFromEnum(method)].getSlice(splitted.slice(), &m)) {
                 return m;
             }
             m.deinit();
@@ -358,17 +376,17 @@ test "extract_params_from_path" {
 test "router" {
     var router = Router(u8).init(std.testing.allocator);
     defer router.deinit();
-    try router.put("/", 1);
-    try router.put("/hello", 2);
-    try router.put("/paris/:id", 3);
+    try router.put(.get, "/", 1);
+    try router.put(.post, "/hello", 2);
+    try router.put(.put, "/paris/:id", 3);
 
-    var r1 = try router.get("/");
+    var r1 = try router.get(.get, "/");
     defer r1.?.deinit();
     try testing.expect(r1.?.item == 1);
-    var r2 = try router.get("/hello");
+    var r2 = try router.get(.post, "/hello");
     defer r2.?.deinit();
     try testing.expect(r2.?.item == 2);
-    var r3 = try router.get("/paris/123");
+    var r3 = try router.get(.put, "/paris/123");
     try testing.expect(r3 != null);
     defer r3.?.deinit();
     try testing.expect(r3.?.item == 3);
@@ -381,6 +399,12 @@ test "router" {
 
     try testing.expect(std.mem.eql(u8, r3params.get("id").?, "123"));
 
-    const r4 = try router.get("/unknown");
+    const r4 = try router.get(.get, "/unknown");
     try testing.expect(r4 == null);
+
+    const r5 = try router.get(.get, "/hello");
+    try testing.expect(r5 == null);
+
+    const r6 = try router.get(.get, "/paris/123");
+    try testing.expect(r6 == null);
 }
